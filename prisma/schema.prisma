@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Author {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  bio       String?  @db.Text
+  photo     String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+  
+  books     Book[]
+  
+  @@map("authors")
+}
+
+model Book {
+  id            String   @id @default(cuid())
+  title         String   @db.VarChar(255)
+  isbn          String   @unique @db.VarChar(50)
+  publishedYear Int
+  coverImage    String?  @db.VarChar(500)
+  description   String?  @db.Text
+  createdAt     DateTime @default(now())
+  
+  authorId      String
+  author        Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  @@index([authorId])
+  @@map("books")
+}
