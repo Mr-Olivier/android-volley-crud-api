@@ -32,21 +32,135 @@ export async function GET(
   }
 }
 
-// PUT /api/books/[id] - Update book
+// // PUT /api/books/[id] - Update book
+// export async function PUT(
+//   request: NextRequest,
+//   { params }: { params: { id: string } }
+// ) {
+//   try {
+//     const formData = await request.formData();
+
+//     const title = formData.get("title") as string;
+//     const isbn = formData.get("isbn") as string;
+//     const publishedYear = formData.get("publishedYear") as string;
+//     const description = formData.get("description") as string;
+//     const authorId = formData.get("authorId") as string;
+//     const coverFile = formData.get("coverImage") as File | null;
+//     const keepCurrentCover = formData.get("keepCurrentCover") as string;
+
+//     // Validation
+//     if (!title || !isbn || !publishedYear || !authorId) {
+//       return NextResponse.json(
+//         { error: "Title, ISBN, published year, and author are required" },
+//         { status: 400 }
+//       );
+//     }
+
+//     let coverImagePath: string | null = null;
+
+//     // Handle cover image upload
+//     if (coverFile && coverFile.size > 0) {
+//       const bytes = await coverFile.arrayBuffer();
+//       const buffer = Buffer.from(bytes);
+
+//       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+//       const filename = `book-${uniqueSuffix}${path.extname(coverFile.name)}`;
+//       const filepath = path.join(
+//         process.cwd(),
+//         "public/uploads/books",
+//         filename
+//       );
+
+//       await writeFile(filepath, buffer);
+//       coverImagePath = `/uploads/books/${filename}`;
+//     } else if (keepCurrentCover === "true") {
+//       // Keep existing cover
+//       const currentBook = await prisma.book.findUnique({
+//         where: { id: params.id },
+//         select: { coverImage: true },
+//       });
+//       coverImagePath = currentBook?.coverImage || null;
+//     }
+
+//     // Update book in database
+//     const book = await prisma.book.update({
+//       where: { id: params.id },
+//       data: {
+//         title,
+//         isbn,
+//         publishedYear: parseInt(publishedYear),
+//         description: description || null,
+//         authorId,
+//         ...(coverImagePath !== null && { coverImage: coverImagePath }),
+//       },
+//       include: {
+//         author: true,
+//       },
+//     });
+
+//     return NextResponse.json(book, { status: 200 });
+//   } catch (error: any) {
+//     console.error("Error updating book:", error);
+
+//     if (error.code === "P2002") {
+//       return NextResponse.json(
+//         { error: "ISBN already exists" },
+//         { status: 409 }
+//       );
+//     }
+
+//     if (error.code === "P2003") {
+//       return NextResponse.json({ error: "Author not found" }, { status: 404 });
+//     }
+
+//     if (error.code === "P2025") {
+//       return NextResponse.json({ error: "Book not found" }, { status: 404 });
+//     }
+
+//     return NextResponse.json(
+//       { error: "Failed to update book" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const formData = await request.formData();
+    const contentType = request.headers.get("content-type") || "";
 
-    const title = formData.get("title") as string;
-    const isbn = formData.get("isbn") as string;
-    const publishedYear = formData.get("publishedYear") as string;
-    const description = formData.get("description") as string;
-    const authorId = formData.get("authorId") as string;
-    const coverFile = formData.get("coverImage") as File | null;
-    const keepCurrentCover = formData.get("keepCurrentCover") as string;
+    let title,
+      isbn,
+      publishedYear,
+      description,
+      authorId,
+      coverFile = null,
+      keepCurrentCover = false;
+
+    // Handle JSON (from Android)
+    if (contentType.includes("application/json")) {
+      const body = await request.json();
+      title = body.title;
+      isbn = body.isbn;
+      publishedYear = body.publishedYear;
+      description = body.description;
+      authorId = body.authorId;
+      keepCurrentCover =
+        body.keepCurrentCover === "true" || body.keepCurrentCover === true;
+    }
+    // Handle FormData (from web)
+    else {
+      const formData = await request.formData();
+      title = formData.get("title") as string;
+      isbn = formData.get("isbn") as string;
+      publishedYear = formData.get("publishedYear") as string;
+      description = formData.get("description") as string;
+      authorId = formData.get("authorId") as string;
+      coverFile = formData.get("coverImage") as File | null;
+      keepCurrentCover = formData.get("keepCurrentCover") === "true";
+    }
 
     // Validation
     if (!title || !isbn || !publishedYear || !authorId) {
@@ -73,10 +187,10 @@ export async function PUT(
 
       await writeFile(filepath, buffer);
       coverImagePath = `/uploads/books/${filename}`;
-    } else if (keepCurrentCover === "true") {
+    } else if (keepCurrentCover) {
       // Keep existing cover
       const currentBook = await prisma.book.findUnique({
-        where: { id: params.id },
+        where: { id: (await params).id },
         select: { coverImage: true },
       });
       coverImagePath = currentBook?.coverImage || null;
@@ -84,11 +198,14 @@ export async function PUT(
 
     // Update book in database
     const book = await prisma.book.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: {
         title,
         isbn,
-        publishedYear: parseInt(publishedYear),
+        publishedYear:
+          typeof publishedYear === "string"
+            ? parseInt(publishedYear)
+            : publishedYear,
         description: description || null,
         authorId,
         ...(coverImagePath !== null && { coverImage: coverImagePath }),
