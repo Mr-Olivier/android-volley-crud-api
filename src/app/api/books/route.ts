@@ -33,17 +33,48 @@ export async function GET() {
   }
 }
 
-// POST /api/books - Create new book with cover image
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
+    const contentType = request.headers.get("content-type") || "";
 
-    const title = formData.get("title") as string;
-    const isbn = formData.get("isbn") as string;
-    const publishedYear = formData.get("publishedYear") as string;
-    const description = formData.get("description") as string;
-    const authorId = formData.get("authorId") as string;
-    const coverFile = formData.get("coverImage") as File | null;
+    let title,
+      isbn,
+      publishedYear,
+      description,
+      authorId,
+      coverFile = null;
+
+    // Handle JSON (from Android)
+    if (contentType.includes("application/json")) {
+      const body = await request.json();
+      title = body.title;
+      isbn = body.isbn;
+      publishedYear = body.publishedYear;
+      description = body.description;
+      authorId = body.authorId;
+      // No image upload from Android
+    }
+    // Handle FormData (from web)
+    else if (
+      contentType.includes("multipart/form-data") ||
+      contentType.includes("application/x-www-form-urlencoded")
+    ) {
+      const formData = await request.formData();
+      title = formData.get("title") as string;
+      isbn = formData.get("isbn") as string;
+      publishedYear = formData.get("publishedYear") as string;
+      description = formData.get("description") as string;
+      authorId = formData.get("authorId") as string;
+      coverFile = formData.get("coverImage") as File | null;
+    } else {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid Content-Type. Use application/json or multipart/form-data",
+        },
+        { status: 400 }
+      );
+    }
 
     // Validation
     if (!title || !isbn || !publishedYear || !authorId) {
@@ -55,12 +86,11 @@ export async function POST(request: NextRequest) {
 
     let coverImagePath = null;
 
-    // Handle cover image upload
+    // Handle cover image upload (only from web FormData)
     if (coverFile && coverFile.size > 0) {
       const bytes = await coverFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      // Create unique filename
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
       const filename = `book-${uniqueSuffix}${path.extname(coverFile.name)}`;
       const filepath = path.join(
@@ -69,7 +99,6 @@ export async function POST(request: NextRequest) {
         filename
       );
 
-      // Save file
       await writeFile(filepath, buffer);
       coverImagePath = `/uploads/books/${filename}`;
     }
@@ -79,7 +108,10 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         isbn,
-        publishedYear: parseInt(publishedYear),
+        publishedYear:
+          typeof publishedYear === "string"
+            ? parseInt(publishedYear)
+            : publishedYear,
         description: description || null,
         coverImage: coverImagePath,
         authorId,
@@ -93,7 +125,6 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("Error creating book:", error);
 
-    // Handle unique constraint violation
     if (error.code === "P2002") {
       return NextResponse.json(
         { error: "ISBN already exists" },
@@ -101,7 +132,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle foreign key constraint
     if (error.code === "P2003") {
       return NextResponse.json({ error: "Author not found" }, { status: 404 });
     }
