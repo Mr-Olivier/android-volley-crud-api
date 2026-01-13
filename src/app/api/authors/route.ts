@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const authors = await prisma.author.findMany({
       include: {
-        books: true, // Include books count
+        books: true,
       },
       orderBy: {
         createdAt: "desc",
