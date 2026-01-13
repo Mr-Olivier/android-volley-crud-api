@@ -3,11 +3,11 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clear existing data
+
   await prisma.book.deleteMany();
   await prisma.author.deleteMany();
 
-  // Create Authors
+
   const author1 = await prisma.author.create({
     data: {
       name: "J.K. Rowling",
