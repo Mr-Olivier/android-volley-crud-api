@@ -133,7 +133,6 @@ export default function EditBookPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Title */}
         <div>
           <label className="block text-sm font-medium mb-2">
             Title <span className="text-red-500">*</span>
